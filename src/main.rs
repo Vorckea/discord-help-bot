@@ -1,51 +1,52 @@
 use std::env;
 
-use serenity::{
-    async_trait,
-    model::{channel::Message, gateway::Ready},
-    prelude::*,
-};
+use serenity::async_trait;
+use serenity::futures::future::ok;
+use serenity::prelude::*;
+use serenity::model::channel::Message;
+use serenity::framework::standard::macros::{command, group};
+use serenity::framework::standard::{StandardFramework, CommandResult};
 
-const HELP_MESSAGE: &str = "
-Hello there, Human!
-You have summoned me. Let's see about getting you what you need.
-❓ Need technical help?
-➡️ You can flag an admin with @admin
-
-I hope that resolves your issue!
-— HelpBot 🤖
-";
-
-const HELP_COMMAND: &str = "!help";
+#[group]
+#[commands(ping, help)]
+struct General;
 
 struct Handler;
 
 #[async_trait]
-impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {
-        if msg.content == HELP_COMMAND {
-            if let Err(why) = msg.channel_id.say(&ctx.http, HELP_MESSAGE).await {
-                println!("Error sending message: {:?}", why);
-            }
-        }
-    }
-
-    async fn ready(&self, _: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-    }
-}
+impl EventHandler for Handler {}
 
 #[tokio::main]
 async fn main() {
-    let token = env::var("DISCORD_TOKEN")
-        .expect("Expected a token in the environment");
+    let framework = StandardFramework::new()
+        .configure(|c| c.prefix("!")) // set the bot's prefix to "!"
+        .group(&GENERAL_GROUP);
 
-    let mut client = Client::new(&token)
+    // Login with a bot token from the environment
+    let token = env::var("DISCORD_TOKEN").expect("token");
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+    let mut client = Client::builder(token, intents)
         .event_handler(Handler)
+        .framework(framework)
         .await
-        .expect("Err creating client");
+        .expect("Error creating client");
 
+    // start listening for events by starting a single shard
     if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
+        println!("An error occurred while running the client: {:?}", why);
     }
+}
+
+#[command]
+async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
+    msg.reply_ping(ctx, "PONG!").await?;
+
+    Ok(())
+}
+
+#[command]
+async fn help(ctx: &Context, msg: &Message) -> CommandResult {
+    msg.reply(ctx, "HELP").await?;
+
+    Ok(())
 }
